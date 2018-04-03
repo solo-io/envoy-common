@@ -30,7 +30,7 @@ TEST(SoloMetadataTest, BoolValue) {
   Metadata::mutableMetadataValue(metadata, "filter1", "key1")
       .set_bool_value(true);
   Metadata::mutableMetadataValue(metadata, "filter2", "key2")
-      .set_bool_value(true);
+      .set_bool_value(false);
 
   const auto filter1 = metadata.filter_metadata().find("filter1")->second;
   const auto filter2 = metadata.filter_metadata().find("filter2")->second;
@@ -38,7 +38,7 @@ TEST(SoloMetadataTest, BoolValue) {
   EXPECT_TRUE(SoloMetadata::boolValue(filter1, "key1"));
   EXPECT_FALSE(SoloMetadata::boolValue(filter1, "key2"));
   EXPECT_FALSE(SoloMetadata::boolValue(filter2, "key1"));
-  EXPECT_TRUE(SoloMetadata::boolValue(filter2, "key2"));
+  EXPECT_FALSE(SoloMetadata::boolValue(filter2, "key2"));
 }
 
 } // namespace
