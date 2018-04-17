@@ -1,6 +1,6 @@
 workspace(name="solo_envoy_common")
 
-ENVOY_SHA = "d41d06eb614fd49f19422d9eed9235c320af9229"  # April 10, 2018 (gRPC/JSON transcoder: enable preserving route after headers modified)
+ENVOY_SHA = "9d6b432218d8eb010bde9b7f720319378691b94a"  # April 16, 2018 (router: vhost/route/w.cluster local filter configuration)
 
 http_archive(
     name = "envoy",

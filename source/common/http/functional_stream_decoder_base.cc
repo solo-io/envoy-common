@@ -4,6 +4,8 @@
 #include "common/http/filter_utility.h"
 #include "common/http/solo_filter_utility.h"
 
+#include "functional_base.pb.h"
+
 namespace Envoy {
 namespace Http {
 
@@ -19,10 +21,43 @@ FunctionRetrieverMetadataAccessor::getFunctionName() const {
 
 absl::optional<const ProtobufWkt::Struct *>
 FunctionRetrieverMetadataAccessor::getFunctionSpec() const {
-  if (cluster_spec_ == nullptr) {
-    return {};
+  RELEASE_ASSERT(function_name_);
+
+  const auto &metadata = cluster_info_->metadata();
+
+  const auto filter_it = metadata.filter_metadata().find(
+      Config::SoloCommonMetadataFilters::get().FUNCTIONAL_ROUTER);
+  if (filter_it == metadata.filter_metadata().end()) {
+    return nullptr;
   }
-  return cluster_spec_;
+  const auto &filter_metadata_struct = filter_it->second;
+  const auto &filter_metadata_fields = filter_metadata_struct.fields();
+
+  const auto functions_it = filter_metadata_fields.find(
+      Config::MetadataFunctionalRouterKeys::get().FUNCTIONS);
+  if (functions_it == filter_metadata_fields.end()) {
+    return nullptr;
+  }
+
+  const auto &functionsvalue = functions_it->second;
+  if (functionsvalue.kind_case() != ProtobufWkt::Value::kStructValue) {
+    return nullptr;
+  }
+
+  const auto &functions_struct = functionsvalue.struct_value();
+  const auto &functions_struct_fields = functions_struct.fields();
+
+  const auto spec_it = functions_struct_fields.find(*function_name_);
+  if (spec_it == functions_struct_fields.end()) {
+    return nullptr;
+  }
+
+  const auto &specvalue = spec_it->second;
+  if (specvalue.kind_case() != ProtobufWkt::Value::kStructValue) {
+    return nullptr;
+  }
+
+  return &specvalue.struct_value();
 }
 
 absl::optional<const ProtobufWkt::Struct *>
@@ -63,8 +98,12 @@ FunctionRetrieverMetadataAccessor::getRouteMetadata() const {
 
 absl::optional<FunctionRetrieverMetadataAccessor::Result>
 FunctionRetrieverMetadataAccessor::tryToGetSpec() {
-  const Router::RouteEntry *routeEntry =
-      SoloFilterUtility::resolveRouteEntry(decoder_callbacks_);
+  route_info_ = decoder_callbacks_->route();
+  if (!route_info_) {
+    return {};
+  }
+
+  const Router::RouteEntry *routeEntry = route_info_->routeEntry();
   if (!routeEntry) {
     return {};
   }
@@ -78,51 +117,27 @@ FunctionRetrieverMetadataAccessor::tryToGetSpec() {
   // able to do a function route or error. unless passthrough is allowed on the
   // upstream.
 
-  const auto &metadata = routeEntry->metadata();
+  const Protobuf::Message *maybe_filter_config = routeEntry->perFilterConfig(
+      Config::SoloCommonFilterNames::get().FUNCTIONAL_ROUTER);
+  if (!maybe_filter_config) {
+    maybe_filter_config = route_info_->perFilterConfig(
+        Config::SoloCommonFilterNames::get().FUNCTIONAL_ROUTER);
+  }
 
-  const auto filter_it = metadata.filter_metadata().find(
-      Config::SoloCommonMetadataFilters::get().FUNCTIONAL_ROUTER);
-  if (filter_it == metadata.filter_metadata().end()) {
+  const envoy::api::v2::filter::http::FunctionalFilterRouteConfig
+      *filter_config = dynamic_cast<
+          const envoy::api::v2::filter::http::FunctionalFilterRouteConfig *>(
+          maybe_filter_config);
+  if (!filter_config) {
+    // this cast should never fail, but maybe we don't have a config...
     return canPassthrough()
                ? absl::optional<FunctionRetrieverMetadataAccessor::Result>()
                : Result::Error;
   }
 
-  // this needs to have a field with the name of the cluster:
-  const auto &filter_metadata_struct = filter_it->second;
-  const auto &filter_metadata_struct_fields = filter_metadata_struct.fields();
+  function_name_ = &filter_config->function_name();
 
-  const auto cluster_it =
-      filter_metadata_struct_fields.find(cluster_info_->name());
-  if (cluster_it == filter_metadata_struct_fields.end()) {
-    return Result::Error;
-  }
-  // the value is a struct with either a single function of multiple functions
-  // with weights.
-  const ProtobufWkt::Value &clustervalue = cluster_it->second;
-  if (clustervalue.kind_case() != ProtobufWkt::Value::kStructValue) {
-    return Result::Error;
-  }
-  const auto &clusterstruct = clustervalue.struct_value();
-
-  for (auto &&fptr :
-       {&FunctionRetrieverMetadataAccessor::findSingleFunction,
-        &FunctionRetrieverMetadataAccessor::findMultileFunction}) {
-    absl::optional<const std::string *> maybe_single_func =
-        (this->*fptr)(clusterstruct);
-    if (maybe_single_func.has_value()) {
-      // we found a function so the search is over.
-      function_name_ = maybe_single_func.value();
-      cluster_spec_ = nullptr;
-      tryToGetSpecFromCluster(*function_name_);
-
-      return Result::Active;
-    }
-  }
-
-  // Function not found :(
-  // return a 404
-  return Result::Error;
+  return Result::Active;
 }
 
 bool FunctionRetrieverMetadataAccessor::canPassthrough() {
@@ -149,172 +164,6 @@ bool FunctionRetrieverMetadataAccessor::canPassthrough() {
   }
 
   return functionsvalue.bool_value();
-}
-
-absl::optional<const std::string *>
-FunctionRetrieverMetadataAccessor::findSingleFunction(
-    const ProtobufWkt::Struct &filter_metadata_struct) {
-
-  const auto &filter_metadata_fields = filter_metadata_struct.fields();
-
-  // TODO: write code for multiple functions after e2e
-
-  const auto function_it = filter_metadata_fields.find(
-      Config::MetadataFunctionalRouterKeys::get().FUNCTION);
-  if (function_it == filter_metadata_fields.end()) {
-    return {};
-  }
-
-  const auto &value = function_it->second;
-  if (value.kind_case() != ProtobufWkt::Value::kStringValue) {
-    return {};
-  }
-
-  return absl::optional<const std::string *>(&value.string_value());
-}
-
-absl::optional<const std::string *>
-FunctionRetrieverMetadataAccessor::findMultileFunction(
-    const ProtobufWkt::Struct &filter_metadata_struct) {
-
-  const auto &filter_metadata_fields = filter_metadata_struct.fields();
-
-  const auto weighted_functions_it = filter_metadata_fields.find(
-      Config::MetadataFunctionalRouterKeys::get().WEIGHTED_FUNCTIONS);
-  if (weighted_functions_it == filter_metadata_fields.end()) {
-    return {};
-  }
-
-  const auto &weighted_functions_value = weighted_functions_it->second;
-  if (weighted_functions_value.kind_case() !=
-      ProtobufWkt::Value::kStructValue) {
-    return {};
-  }
-  const auto &weighted_functions_fields =
-      weighted_functions_value.struct_value().fields();
-
-  const auto total_weight_it = weighted_functions_fields.find(
-      Config::MetadataFunctionalRouterKeys::get().FUNCTIONS_TOTAL_WEIGHT);
-  if (total_weight_it == weighted_functions_fields.end()) {
-    return {};
-  }
-  const auto &total_weight_value = total_weight_it->second;
-  if (total_weight_value.kind_case() != ProtobufWkt::Value::kNumberValue) {
-    return {};
-  }
-  uint64_t total_function_weight =
-      static_cast<uint64_t>(total_weight_value.number_value());
-
-  const auto functions_list_it = weighted_functions_fields.find(
-      Config::MetadataFunctionalRouterKeys::get().FUNCTIONS);
-  if (functions_list_it == weighted_functions_fields.end()) {
-    return {};
-  }
-  const auto &functions_list_value = functions_list_it->second;
-  if (functions_list_value.kind_case() != ProtobufWkt::Value::kListValue) {
-    return {};
-  }
-  const auto &functions_list = functions_list_value.list_value();
-
-  // TODO(yuval-k): factor this out for easier testing.
-  // get a random number, and find the
-  // algorithm is like in RouteEntryImplBase::clusterEntry
-  uint64_t random_value = random_.random();
-  uint64_t selected_value = random_value % total_function_weight;
-
-  uint64_t begin = 0UL;
-  uint64_t end = 0UL;
-
-  for (const ProtobufWkt::Value &function : functions_list.values()) {
-
-    auto maybe_fw = getFuncWeight(function);
-    if (!maybe_fw.has_value()) {
-      return {};
-    }
-
-    auto &&fw = maybe_fw.value();
-    end = begin + fw.weight;
-    if (((selected_value >= begin) && (selected_value < end)) ||
-        (end >= total_function_weight)) {
-      return absl::optional<const std::string *>(fw.name);
-    }
-    begin = end;
-  }
-
-  return {};
-}
-
-absl::optional<FunctionRetrieverMetadataAccessor::FunctionWeight>
-FunctionRetrieverMetadataAccessor::getFuncWeight(
-    const ProtobufWkt::Value &function_weight_value) {
-
-  if (function_weight_value.kind_case() != ProtobufWkt::Value::kStructValue) {
-    return {};
-  }
-
-  const auto &funcweight_fields = function_weight_value.struct_value().fields();
-  const auto weight_it = funcweight_fields.find(
-      Config::MetadataFunctionalRouterKeys::get().WEIGHTED_FUNCTIONS_WEIGHT);
-  if (weight_it == funcweight_fields.end()) {
-    return {};
-  }
-  const auto &weight_value = weight_it->second;
-  if (weight_value.kind_case() != ProtobufWkt::Value::kNumberValue) {
-    return {};
-  }
-  uint64_t weight = static_cast<uint64_t>(weight_value.number_value());
-
-  const auto name_it = funcweight_fields.find(
-      Config::MetadataFunctionalRouterKeys::get().WEIGHTED_FUNCTIONS_NAME);
-  if (name_it == funcweight_fields.end()) {
-    return {};
-  }
-  const auto &name_value = name_it->second;
-  if (name_value.kind_case() != ProtobufWkt::Value::kStringValue) {
-    return {};
-  }
-
-  return FunctionWeight{weight, &name_value.string_value()};
-}
-
-void FunctionRetrieverMetadataAccessor::tryToGetSpecFromCluster(
-    const std::string &funcname) {
-
-  const auto &metadata = cluster_info_->metadata();
-
-  const auto filter_it = metadata.filter_metadata().find(
-      Config::SoloCommonMetadataFilters::get().FUNCTIONAL_ROUTER);
-  if (filter_it == metadata.filter_metadata().end()) {
-    return;
-  }
-  const auto &filter_metadata_struct = filter_it->second;
-  const auto &filter_metadata_fields = filter_metadata_struct.fields();
-
-  const auto functions_it = filter_metadata_fields.find(
-      Config::MetadataFunctionalRouterKeys::get().FUNCTIONS);
-  if (functions_it == filter_metadata_fields.end()) {
-    return;
-  }
-
-  const auto &functionsvalue = functions_it->second;
-  if (functionsvalue.kind_case() != ProtobufWkt::Value::kStructValue) {
-    return;
-  }
-
-  const auto &functions_struct = functionsvalue.struct_value();
-  const auto &functions_struct_fields = functions_struct.fields();
-
-  const auto spec_it = functions_struct_fields.find(funcname);
-  if (spec_it == functions_struct_fields.end()) {
-    return;
-  }
-
-  const auto &specvalue = spec_it->second;
-  if (specvalue.kind_case() != ProtobufWkt::Value::kStructValue) {
-    return;
-  }
-
-  cluster_spec_ = &specvalue.struct_value();
 }
 
 void FunctionRetrieverMetadataAccessor::fetchClusterInfoIfOurs() {

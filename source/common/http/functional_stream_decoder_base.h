@@ -14,8 +14,7 @@ class FunctionRetrieverMetadataAccessor : public MetadataAccessor {
 public:
   FunctionRetrieverMetadataAccessor(Server::Configuration::FactoryContext &ctx,
                                     const std::string &childname)
-      : cm_(ctx.clusterManager()), random_(ctx.random()),
-        childname_(childname) {}
+      : cm_(ctx.clusterManager()), childname_(childname) {}
 
   ~FunctionRetrieverMetadataAccessor();
 
@@ -39,18 +38,11 @@ public:
   }
 
 private:
-  struct FunctionWeight {
-    uint64_t weight;
-    const std::string *name;
-  };
-
   Upstream::ClusterManager &cm_;
-  Runtime::RandomGenerator &random_;
   const std::string &childname_;
 
   Upstream::ClusterInfoConstSharedPtr cluster_info_{};
-  const std::string *function_name_{};        // function name is here
-  const ProtobufWkt::Struct *cluster_spec_{}; // function spec is here
+  const std::string *function_name_{}; // function name is here
   // mutable as these are modified in a const function. it is ok as the state of
   // the object doesnt change, it is for lazy loading.
   mutable const ProtobufWkt::Struct *child_spec_{}; // childfilter is here
@@ -61,14 +53,6 @@ private:
   StreamDecoderFilterCallbacks *decoder_callbacks_{};
 
   bool canPassthrough();
-
-  absl::optional<const std::string *>
-  findSingleFunction(const ProtobufWkt::Struct &filter_metadata_struct);
-  absl::optional<const std::string *>
-  findMultileFunction(const ProtobufWkt::Struct &filter_metadata_struct);
-
-  absl::optional<FunctionWeight>
-  getFuncWeight(const ProtobufWkt::Value &function_weight_value);
 
   void tryToGetSpecFromCluster(const std::string &funcname);
   void fetchClusterInfoIfOurs();
