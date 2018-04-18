@@ -33,7 +33,7 @@ const Protobuf::Message *PerFilterConfigUtilBase::getPerFilterBaseConfig(
   const Protobuf::Message *maybe_filter_config{};
 
   const Router::RouteEntry *routeEntry = route_info_->routeEntry();
-  if (!routeEntry) {
+  if (routeEntry) {
     maybe_filter_config = routeEntry->perFilterConfig(filter_name_);
   }
 

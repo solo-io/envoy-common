@@ -130,7 +130,7 @@ protected:
 
     ON_CALL(filter_callbacks_.route_->route_entry_,
             perFilterConfig(
-                Config::SoloCommonMetadataFilters::get().FUNCTIONAL_ROUTER))
+                Config::SoloCommonFilterNames::get().FUNCTIONAL_ROUTER))
         .WillByDefault(Return(&route_function_));
   }
 
@@ -205,10 +205,11 @@ TEST_F(FunctionFilterTest, HaveRouteMeta) {
                             {":path", "/getsomething"}};
   filter_->decodeHeaders(headers, true);
 
-  const ProtobufWkt::Struct &receivedspec =
-      *filter_->meta_accessor_->getFunctionSpec().value();
+  ASSERT_NE(nullptr, filter_->meta_accessor_);
 
-  EXPECT_NE(nullptr, &receivedspec);
+  auto&& receivedspec = filter_->meta_accessor_->getFunctionSpec();
+
+  EXPECT_TRUE(receivedspec.has_value());
 
   EXPECT_TRUE(filter_->decodeHeadersCalled_);
   EXPECT_FALSE(filter_->decodeDataCalled_);
