@@ -4,12 +4,16 @@
 #include "common/http/filter_utility.h"
 #include "common/http/solo_filter_utility.h"
 
-#include "functional_base.pb.h"
-
 namespace Envoy {
 namespace Http {
 
 using Server::Configuration::FactoryContext;
+
+FunctionRetrieverMetadataAccessor::FunctionRetrieverMetadataAccessor(
+    Server::Configuration::FactoryContext &ctx, const std::string &childname)
+    : cm_(ctx.clusterManager()), childname_(childname),
+      per_filter_config_(
+          Config::SoloCommonFilterNames::get().FUNCTIONAL_ROUTER) {}
 
 FunctionRetrieverMetadataAccessor::~FunctionRetrieverMetadataAccessor() {}
 
@@ -117,17 +121,9 @@ FunctionRetrieverMetadataAccessor::tryToGetSpec() {
   // able to do a function route or error. unless passthrough is allowed on the
   // upstream.
 
-  const Protobuf::Message *maybe_filter_config = routeEntry->perFilterConfig(
-      Config::SoloCommonFilterNames::get().FUNCTIONAL_ROUTER);
-  if (!maybe_filter_config) {
-    maybe_filter_config = route_info_->perFilterConfig(
-        Config::SoloCommonFilterNames::get().FUNCTIONAL_ROUTER);
-  }
-
   const envoy::api::v2::filter::http::FunctionalFilterRouteConfig
-      *filter_config = dynamic_cast<
-          const envoy::api::v2::filter::http::FunctionalFilterRouteConfig *>(
-          maybe_filter_config);
+      *filter_config =
+          per_filter_config_.getPerFilterConfig(*decoder_callbacks_);
   if (!filter_config) {
     // this cast should never fail, but maybe we don't have a config...
     return canPassthrough()

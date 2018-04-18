@@ -4,8 +4,11 @@
 #include "envoy/server/filter_config.h"
 #include "envoy/upstream/cluster_manager.h"
 
+#include "common/http/solo_filter_utility.h"
 #include "common/http/utility.h"
 #include "common/protobuf/utility.h"
+
+#include "functional_base.pb.h"
 
 namespace Envoy {
 namespace Http {
@@ -13,8 +16,7 @@ namespace Http {
 class FunctionRetrieverMetadataAccessor : public MetadataAccessor {
 public:
   FunctionRetrieverMetadataAccessor(Server::Configuration::FactoryContext &ctx,
-                                    const std::string &childname)
-      : cm_(ctx.clusterManager()), childname_(childname) {}
+                                    const std::string &childname);
 
   ~FunctionRetrieverMetadataAccessor();
 
@@ -56,6 +58,9 @@ private:
 
   void tryToGetSpecFromCluster(const std::string &funcname);
   void fetchClusterInfoIfOurs();
+
+  PerFilterConfigUtil<envoy::api::v2::filter::http::FunctionalFilterRouteConfig>
+      per_filter_config_;
 };
 
 template <typename MixinBase> class FunctionalFilterMixin : public MixinBase {
