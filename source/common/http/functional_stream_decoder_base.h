@@ -13,6 +13,11 @@
 namespace Envoy {
 namespace Http {
 
+struct FunctionalFilterMixinRouteFilterConfig
+    : public Router::RouteSpecificFilterConfig {
+  std::string function_name_;
+};
+
 class FunctionRetrieverMetadataAccessor : public MetadataAccessor {
 public:
   FunctionRetrieverMetadataAccessor(Server::Configuration::FactoryContext &ctx,
@@ -59,7 +64,7 @@ private:
   void tryToGetSpecFromCluster(const std::string &funcname);
   void fetchClusterInfoIfOurs();
 
-  PerFilterConfigUtil<envoy::api::v2::filter::http::FunctionalFilterRouteConfig>
+  PerFilterConfigUtil<FunctionalFilterMixinRouteFilterConfig>
       per_filter_config_;
 };
 

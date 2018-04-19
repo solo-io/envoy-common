@@ -1,6 +1,6 @@
 workspace(name="solo_envoy_common")
 
-ENVOY_SHA = "9d6b432218d8eb010bde9b7f720319378691b94a"  # April 16, 2018 (router: vhost/route/w.cluster local filter configuration)
+ENVOY_SHA = "47c63e59bb7d30f199fb20bf431ea17eace72946"  # April 19, 2018 (Add perFilerConfigObject to store pre-processed per-route-config)
 
 http_archive(
     name = "envoy",

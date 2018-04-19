@@ -42,7 +42,7 @@ class PerFilterConfigUtilBase {
 protected:
   PerFilterConfigUtilBase(const std::string &filter_name)
       : filter_name_(filter_name) {}
-  const Protobuf::Message *
+  const Router::RouteSpecificFilterConfig *
   getPerFilterBaseConfig(StreamDecoderFilterCallbacks &decoder_callbacks);
 
 private:
@@ -50,19 +50,20 @@ private:
   Router::RouteConstSharedPtr route_info_{};
 };
 
-template <class ConfigProto>
+template <class ConfigType>
 class PerFilterConfigUtil : PerFilterConfigUtilBase {
 
-  static_assert(std::is_base_of<Protobuf::Message, ConfigProto>::value,
-                "ConfigProto must be a subclass of Protobuf::Message");
+  static_assert(
+      std::is_base_of<Router::RouteSpecificFilterConfig, ConfigType>::value,
+      "ConfigType must be a subclass of Protobuf::Message");
 
 public:
   PerFilterConfigUtil(const std::string &filter_name)
       : PerFilterConfigUtilBase(filter_name) {}
 
-  const ConfigProto *
+  const ConfigType *
   getPerFilterConfig(StreamDecoderFilterCallbacks &decoder_callbacks) {
-    return dynamic_cast<const ConfigProto *>(
+    return dynamic_cast<const ConfigType *>(
         getPerFilterBaseConfig(decoder_callbacks));
   }
 };

@@ -126,11 +126,11 @@ protected:
 
   void initroutemeta() {
 
-    route_function_.set_function_name(functionname_);
+    route_function_.function_name_ = functionname_;
 
-    ON_CALL(filter_callbacks_.route_->route_entry_,
-            perFilterConfig(
-                Config::SoloCommonFilterNames::get().FUNCTIONAL_ROUTER))
+    ON_CALL(
+        filter_callbacks_.route_->route_entry_,
+        perFilterConfig(Config::SoloCommonFilterNames::get().FUNCTIONAL_ROUTER))
         .WillByDefault(Return(&route_function_));
   }
 
@@ -148,7 +148,7 @@ protected:
   ProtobufWkt::Struct *cluster_meta_function2_spec_struct_;
   envoy::api::v2::core::Metadata cluster_metadata_;
 
-  envoy::api::v2::filter::http::FunctionalFilterRouteConfig route_function_;
+  Http::FunctionalFilterMixinRouteFilterConfig route_function_;
 
   std::string childname_;
   std::string functionname_{"funcname"};
@@ -207,7 +207,7 @@ TEST_F(FunctionFilterTest, HaveRouteMeta) {
 
   ASSERT_NE(nullptr, filter_->meta_accessor_);
 
-  auto&& receivedspec = filter_->meta_accessor_->getFunctionSpec();
+  auto &&receivedspec = filter_->meta_accessor_->getFunctionSpec();
 
   EXPECT_TRUE(receivedspec.has_value());
 

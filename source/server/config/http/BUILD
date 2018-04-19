@@ -33,6 +33,7 @@ envoy_cc_library(
         "@envoy//include/envoy/registry",
         "@envoy//include/envoy/server:filter_config_interface",
         "@envoy//source/common/config:filter_json_lib",
+        "@envoy//source/common/protobuf:utility_lib",
         "@envoy//source/extensions/filters/http/common:empty_http_filter_config_lib",
     ],
 )

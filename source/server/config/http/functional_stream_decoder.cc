@@ -3,6 +3,8 @@
 #include "envoy/registry/registry.h"
 
 #include "common/config/solo_well_known_names.h"
+#include "common/http/functional_stream_decoder_base.h"
+#include "common/protobuf/utility.h"
 
 #include "extensions/filters/http/common/empty_http_filter_config.h"
 
@@ -26,9 +28,13 @@ public:
     return [](Http::FilterChainFactoryCallbacks &) -> void {};
   }
 
-  virtual ProtobufTypes::MessagePtr createEmptyRouteConfigProto() {
-    return ProtobufTypes::MessagePtr{
-        new envoy::api::v2::filter::http::FunctionalFilterRouteConfig()};
+  virtual Router::RouteSpecificFilterConfigConstSharedPtr
+  createRouteSpecificFilterConfig(const ProtobufWkt::Struct &source) {
+    envoy::api::v2::filter::http::FunctionalFilterRouteConfig cfg;
+    MessageUtil::jsonConvert(source, cfg);
+    auto obj = std::make_shared<Http::FunctionalFilterMixinRouteFilterConfig>();
+    obj->function_name_ = cfg.function_name();
+    return obj;
   }
 };
 

@@ -23,14 +23,15 @@ const std::string *SoloFilterUtility::resolveClusterName(
   return &route_entry->clusterName();
 }
 
-const Protobuf::Message *PerFilterConfigUtilBase::getPerFilterBaseConfig(
+const Router::RouteSpecificFilterConfig *
+PerFilterConfigUtilBase::getPerFilterBaseConfig(
     StreamDecoderFilterCallbacks &decoder_callbacks) {
   route_info_ = decoder_callbacks.route();
   if (!route_info_) {
     return {};
   }
 
-  const Protobuf::Message *maybe_filter_config{};
+  const Router::RouteSpecificFilterConfig *maybe_filter_config{};
 
   const Router::RouteEntry *routeEntry = route_info_->routeEntry();
   if (routeEntry) {

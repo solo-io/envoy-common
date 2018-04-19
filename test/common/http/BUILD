@@ -29,6 +29,7 @@ envoy_cc_test(
     repository = "@envoy",
     deps = [
         "//source/common/http:route_enabled_filter_wrapper_lib",
+        "//source/server/config/http:functional_stream_decoder_lib",
         "@envoy//include/envoy/event:dispatcher_interface",
         "@envoy//source/common/http:header_map_lib",
         "@envoy//source/common/stats:stats_lib",

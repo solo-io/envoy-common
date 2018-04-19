@@ -121,9 +121,8 @@ FunctionRetrieverMetadataAccessor::tryToGetSpec() {
   // able to do a function route or error. unless passthrough is allowed on the
   // upstream.
 
-  const envoy::api::v2::filter::http::FunctionalFilterRouteConfig
-      *filter_config =
-          per_filter_config_.getPerFilterConfig(*decoder_callbacks_);
+  const FunctionalFilterMixinRouteFilterConfig *filter_config =
+      per_filter_config_.getPerFilterConfig(*decoder_callbacks_);
   if (!filter_config) {
     // this cast should never fail, but maybe we don't have a config...
     return canPassthrough()
@@ -131,7 +130,7 @@ FunctionRetrieverMetadataAccessor::tryToGetSpec() {
                : Result::Error;
   }
 
-  function_name_ = &filter_config->function_name();
+  function_name_ = &filter_config->function_name_;
 
   return Result::Active;
 }
