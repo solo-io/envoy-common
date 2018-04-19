@@ -38,5 +38,35 @@ public:
   resolveClusterName(StreamDecoderFilterCallbacks *decoder_callbacks);
 };
 
+class PerFilterConfigUtilBase {
+protected:
+  PerFilterConfigUtilBase(const std::string &filter_name)
+      : filter_name_(filter_name) {}
+  const Router::RouteSpecificFilterConfig *
+  getPerFilterBaseConfig(StreamDecoderFilterCallbacks &decoder_callbacks);
+
+private:
+  const std::string &filter_name_;
+  Router::RouteConstSharedPtr route_info_{};
+};
+
+template <class ConfigType>
+class PerFilterConfigUtil : PerFilterConfigUtilBase {
+
+  static_assert(
+      std::is_base_of<Router::RouteSpecificFilterConfig, ConfigType>::value,
+      "ConfigType must be a subclass of Protobuf::Message");
+
+public:
+  PerFilterConfigUtil(const std::string &filter_name)
+      : PerFilterConfigUtilBase(filter_name) {}
+
+  const ConfigType *
+  getPerFilterConfig(StreamDecoderFilterCallbacks &decoder_callbacks) {
+    return dynamic_cast<const ConfigType *>(
+        getPerFilterBaseConfig(decoder_callbacks));
+  }
+};
+
 } // namespace Http
 } // namespace Envoy

@@ -4,18 +4,24 @@
 #include "envoy/server/filter_config.h"
 #include "envoy/upstream/cluster_manager.h"
 
+#include "common/http/solo_filter_utility.h"
 #include "common/http/utility.h"
 #include "common/protobuf/utility.h"
+
+#include "functional_base.pb.h"
 
 namespace Envoy {
 namespace Http {
 
+struct FunctionalFilterMixinRouteFilterConfig
+    : public Router::RouteSpecificFilterConfig {
+  std::string function_name_;
+};
+
 class FunctionRetrieverMetadataAccessor : public MetadataAccessor {
 public:
   FunctionRetrieverMetadataAccessor(Server::Configuration::FactoryContext &ctx,
-                                    const std::string &childname)
-      : cm_(ctx.clusterManager()), random_(ctx.random()),
-        childname_(childname) {}
+                                    const std::string &childname);
 
   ~FunctionRetrieverMetadataAccessor();
 
@@ -39,18 +45,11 @@ public:
   }
 
 private:
-  struct FunctionWeight {
-    uint64_t weight;
-    const std::string *name;
-  };
-
   Upstream::ClusterManager &cm_;
-  Runtime::RandomGenerator &random_;
   const std::string &childname_;
 
   Upstream::ClusterInfoConstSharedPtr cluster_info_{};
-  const std::string *function_name_{};        // function name is here
-  const ProtobufWkt::Struct *cluster_spec_{}; // function spec is here
+  const std::string *function_name_{}; // function name is here
   // mutable as these are modified in a const function. it is ok as the state of
   // the object doesnt change, it is for lazy loading.
   mutable const ProtobufWkt::Struct *child_spec_{}; // childfilter is here
@@ -62,16 +61,11 @@ private:
 
   bool canPassthrough();
 
-  absl::optional<const std::string *>
-  findSingleFunction(const ProtobufWkt::Struct &filter_metadata_struct);
-  absl::optional<const std::string *>
-  findMultileFunction(const ProtobufWkt::Struct &filter_metadata_struct);
-
-  absl::optional<FunctionWeight>
-  getFuncWeight(const ProtobufWkt::Value &function_weight_value);
-
   void tryToGetSpecFromCluster(const std::string &funcname);
   void fetchClusterInfoIfOurs();
+
+  PerFilterConfigUtil<FunctionalFilterMixinRouteFilterConfig>
+      per_filter_config_;
 };
 
 template <typename MixinBase> class FunctionalFilterMixin : public MixinBase {

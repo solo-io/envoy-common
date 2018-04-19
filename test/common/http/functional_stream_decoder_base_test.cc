@@ -13,6 +13,7 @@
 #include "test/test_common/utility.h"
 
 #include "fmt/format.h"
+#include "functional_base.pb.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -106,14 +107,6 @@ protected:
     (*cluster_meta_function_spec_struct_->mutable_fields())["name"]
         .set_string_value(functionname_);
 
-    ProtobufWkt::Value &function2structspecvalue =
-        (*functionstruct->mutable_fields())[function2name_];
-
-    cluster_meta_function2_spec_struct_ =
-        function2structspecvalue.mutable_struct_value();
-    (*cluster_meta_function2_spec_struct_->mutable_fields())["name"]
-        .set_string_value(function2name_);
-
     // mark the cluster as functional (i.e. the function filter has claims on
     // it.)
     (*cluster_metadata_.mutable_filter_metadata())[childname_] =
@@ -133,50 +126,12 @@ protected:
 
   void initroutemeta() {
 
-    ProtobufWkt::Value functionvalue;
-    functionvalue.set_string_value(functionname_);
+    route_function_.function_name_ = functionname_;
 
-    ProtobufWkt::Value clustervalue;
-    ProtobufWkt::Struct *clusterstruct = clustervalue.mutable_struct_value();
-    (*clusterstruct->mutable_fields())
-        [Config::MetadataFunctionalRouterKeys::get().FUNCTION] = functionvalue;
-
-    auto clustername = filter_callbacks_.route_->route_entry_.cluster_name_;
-
-    ProtobufWkt::Struct routefunctionmeta;
-    (*routefunctionmeta.mutable_fields())[clustername] = clustervalue;
-
-    // TODO use const
-    (*route_metadata_.mutable_filter_metadata())
-        [Config::SoloCommonMetadataFilters::get().FUNCTIONAL_ROUTER] =
-            routefunctionmeta;
-
-    (*route_metadata_.mutable_filter_metadata())
-        [Config::SoloCommonMetadataFilters::get().FUNCTIONAL_ROUTER] =
-            routefunctionmeta;
-  }
-
-  void initroutemetamultiple() {
-
-    ProtobufWkt::Struct multifunction;
-    auto clustername = filter_callbacks_.route_->route_entry_.cluster_name_;
-    // TODO(yuval-k): constify + use class vars for functions
-    std::string json = "{ \"" + clustername + "\":{" + R"EOF(
-        "weighted_functions": {
-            "total_weight": 10,
-            "functions": [
-                {"name":"funcname","weight":5},
-                {"name":"funcname2","weight":5}
-            ]
-        }
-        }
-        }
-        )EOF";
-    MessageUtil::loadFromJson(json, multifunction);
-
-    (*route_metadata_.mutable_filter_metadata())
-        [Config::SoloCommonMetadataFilters::get().FUNCTIONAL_ROUTER] =
-            multifunction;
+    ON_CALL(
+        filter_callbacks_.route_->route_entry_,
+        perFilterConfig(Config::SoloCommonFilterNames::get().FUNCTIONAL_ROUTER))
+        .WillByDefault(Return(&route_function_));
   }
 
   NiceMock<MockStreamDecoderFilterCallbacks> filter_callbacks_;
@@ -193,9 +148,10 @@ protected:
   ProtobufWkt::Struct *cluster_meta_function2_spec_struct_;
   envoy::api::v2::core::Metadata cluster_metadata_;
 
+  Http::FunctionalFilterMixinRouteFilterConfig route_function_;
+
   std::string childname_;
   std::string functionname_{"funcname"};
-  std::string function2name_{"funcname2"};
 };
 
 bool FunctionalFilterTester::retrieveFunction(
@@ -249,10 +205,11 @@ TEST_F(FunctionFilterTest, HaveRouteMeta) {
                             {":path", "/getsomething"}};
   filter_->decodeHeaders(headers, true);
 
-  const ProtobufWkt::Struct &receivedspec =
-      *filter_->meta_accessor_->getFunctionSpec().value();
+  ASSERT_NE(nullptr, filter_->meta_accessor_);
 
-  EXPECT_NE(nullptr, &receivedspec);
+  auto &&receivedspec = filter_->meta_accessor_->getFunctionSpec();
+
+  EXPECT_TRUE(receivedspec.has_value());
 
   EXPECT_TRUE(filter_->decodeHeadersCalled_);
   EXPECT_FALSE(filter_->decodeDataCalled_);
@@ -340,35 +297,6 @@ TEST_F(FunctionFilterTest, FoundChildRouteMeta) {
   filter_->decodeHeaders(headers, true);
 
   EXPECT_TRUE(filter_->routeMetadataFound_);
-}
-
-TEST_F(FunctionFilterTest, FindMultiFunctions) {
-  initclustermeta();
-  initroutemetamultiple();
-  EXPECT_CALL(factory_context_.random_, random()).WillOnce(Return(0));
-
-  TestHeaderMapImpl headers{{":method", "GET"},
-                            {":authority", "www.solo.io"},
-                            {":path", "/getsomething"}};
-  filter_->decodeHeaders(headers, true);
-
-  EXPECT_TRUE(filter_->decodeHeadersCalled_);
-  EXPECT_EQ(functionname_, filter_->functionCalled_);
-}
-
-TEST_F(FunctionFilterTest, FindMultiFunctions2) {
-  initclustermeta();
-  initroutemetamultiple();
-
-  EXPECT_CALL(factory_context_.random_, random()).WillOnce(Return(6));
-
-  TestHeaderMapImpl headers{{":method", "GET"},
-                            {":authority", "www.solo.io"},
-                            {":path", "/getsomething"}};
-  filter_->decodeHeaders(headers, true);
-
-  EXPECT_TRUE(filter_->decodeHeadersCalled_);
-  EXPECT_EQ(function2name_, filter_->functionCalled_);
 }
 
 } // namespace Http
