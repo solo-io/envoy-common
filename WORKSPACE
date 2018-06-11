@@ -1,6 +1,6 @@
 workspace(name="solo_envoy_common")
 
-ENVOY_SHA = "01fef5ba2d09c3b501ee89b645998a47e70cd44d"  # May 11, 2018 (http filters: less filter factory boilerplate)
+ENVOY_SHA = "1d14b9e46cf6daaff0f02348588a36fbfe8ef65f"  # June 11, 2018 (http: delaying filter stack creation until full headers have been received (#3574))
 
 http_archive(
     name = "envoy",
