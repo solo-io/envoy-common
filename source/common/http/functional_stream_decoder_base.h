@@ -97,10 +97,7 @@ public:
   virtual ~FunctionalFilterMixin() {}
 
   // Http::StreamFilterBase
-  void onDestroy() override {
-    is_reset_ = true;
-    MixinBase::onDestroy();
-  }
+  void onDestroy() override { MixinBase::onDestroy(); }
 
   // Http::StreamDecoderFilter
   FilterHeadersStatus decodeHeaders(HeaderMap &headers,
@@ -163,12 +160,11 @@ public:
 
 private:
   FunctionRetrieverMetadataAccessor metadata_accessor_;
-  bool is_reset_{false};
   bool active_{false};
 
   void error() {
-    Utility::sendLocalReply(*decoder_callbacks_, is_reset_, Code::NotFound,
-                            "Function not found");
+    decoder_callbacks_->sendLocalReply(Code::NotFound, "Function not found",
+                                       nullptr);
   }
 };
 
