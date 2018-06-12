@@ -96,9 +96,6 @@ public:
         metadata_accessor_(ctx, childname) {}
   virtual ~FunctionalFilterMixin() {}
 
-  // Http::StreamFilterBase
-  void onDestroy() override { MixinBase::onDestroy(); }
-
   // Http::StreamDecoderFilter
   FilterHeadersStatus decodeHeaders(HeaderMap &headers,
                                     bool end_stream) override {
