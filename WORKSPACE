@@ -1,6 +1,6 @@
 workspace(name="solo_envoy_common")
 
-ENVOY_SHA = "1d14b9e46cf6daaff0f02348588a36fbfe8ef65f"  # June 11, 2018 (http: delaying filter stack creation until full headers have been received (#3574))
+ENVOY_SHA = "2b216ca50c7cd04e8736cb44b39fbdedc00c86b3"  # Jun 14, 2018 (Correct AddrFaily to AddrFamily. (#3636))
 
 http_archive(
     name = "envoy",
